@@ -15,6 +15,8 @@ namespace VRQuestControlPanel
         public MainForm()
         {
             InitializeComponent();
+
+            CamerasManager.Initialize();
         }
 
         private void btn_Click(object sender, EventArgs e)

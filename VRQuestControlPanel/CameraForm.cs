@@ -1,32 +1,42 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Windows.Forms;
-using AForge.Video;
-using AForge.Video.DirectShow;
-using System.IO;
 using System.Drawing;
+using System.Collections.Generic;
 
 namespace VRQuestControlPanel
 {
-    public partial class CameraForm : Form
+    public partial class CameraForm : Form, IBitmapScreen
     {
 
-        private FilterInfoCollection videoDevicesList;
-        private IVideoSource videoSource;
+        private CamerasManager manager;
+        private CameraWrapper camera;
+
+        private Dictionary<int, int> camsMap;
 
         public CameraForm()
         {
             InitializeComponent();
+            camsMap = new Dictionary<int, int>();
+
+            manager = CamerasManager.GetInstance();
+
             InitializeCamerasList();
             this.Closing += FormClosing;
         }
 
         private void InitializeCamerasList()
         {
-            videoDevicesList = new FilterInfoCollection(FilterCategory.VideoInputDevice);
-            foreach (FilterInfo videoDevice in videoDevicesList)
+            List<CameraWrapper> cameras = manager.getCameras();
+            int i = 0;
+            foreach(CameraWrapper c in cameras)
             {
-                cbSourceList.Items.Add(videoDevice.Name);
+                if (!c.IsRunning)
+                {
+                    cbSourceList.Items.Add(c.GetName());
+                    camsMap.Add(cbSourceList.Items.Count - 1, i);
+                }
+                i++;
             }
             if (cbSourceList.Items.Count > 0)
             {
@@ -41,31 +51,40 @@ namespace VRQuestControlPanel
         private void FormClosing(object sender, CancelEventArgs e)
         {
             // signal to stop
-            if (videoSource != null && videoSource.IsRunning)
+            if (camera != null)
             {
-                videoSource.SignalToStop();
+                camera.Stop();
             }
         }
 
         private void btnStart_Click(object sender, EventArgs e)
         {
-            videoSource = new VideoCaptureDevice(videoDevicesList[cbSourceList.SelectedIndex].MonikerString);
-            videoSource.NewFrame += new NewFrameEventHandler(video_NewFrame);
-            videoSource.Start();
+            int camNumber = -1;
+            camsMap.TryGetValue(cbSourceList.SelectedIndex, out camNumber);
+            if (camNumber != -1) {
+                if (cbSourceList.Text.Equals(""))
+                {
+                    return;
+                }
+                camera = manager.getCameras()[camNumber];
+                camera.AddScreen(this);
+                camera.Start();
+            }else
+            {
+                throw new Exception("Impossible");
+            }
         }
 
         private void btnStop_Click(object sender, EventArgs e)
         {
-            videoSource.SignalToStop();
-            if (videoSource != null && videoSource.IsRunning && pbCameraView.Image != null)
+            if (camera != null)
             {
-                pbCameraView.Image.Dispose();
+                camera.Stop();
             }
         }
 
-        private void video_NewFrame(object sender, NewFrameEventArgs eventArgs)
+        public void DrawBitmap(Bitmap bitmap)
         {
-            Bitmap bitmap = (Bitmap)eventArgs.Frame.Clone();
             pbCameraView.Image = bitmap;
         }
     }
